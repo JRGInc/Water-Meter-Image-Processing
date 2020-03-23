@@ -1,0 +1,2 @@
+model_checkpoint_path: "yolo_v3"
+all_model_checkpoint_paths: "yolo_v3"

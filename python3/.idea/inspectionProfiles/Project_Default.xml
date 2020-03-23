@@ -1,0 +1,18 @@
+<component name="InspectionProjectProfileManager">
+  <profile version="1.0">
+    <option name="myName" value="Project Default" />
+    <inspection_tool class="PyMissingTypeHintsInspection" enabled="true" level="WEAK WARNING" enabled_by_default="true" />
+    <inspection_tool class="PyUnresolvedReferencesInspection" enabled="true" level="WARNING" enabled_by_default="true">
+      <option name="ignoredIdentifiers">
+        <list>
+          <option value="tensorflow.keras" />
+          <option value="tensorflow.concat" />
+          <option value="tensorflow.__version__" />
+          <option value="tensorflow_core._api.v2.lite.Interpreter" />
+          <option value="tflite.Interpreter" />
+          <option value="auxiliary.picamera.picamera" />
+        </list>
+      </option>
+    </inspection_tool>
+  </profile>
+</component>
