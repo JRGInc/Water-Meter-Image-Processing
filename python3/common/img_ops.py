@@ -323,9 +323,9 @@ def crop_glass(
                 'bry': int(img_glass[1] + img_glass[2])
             }
             img_square = img_orig[
-                         img_crop_dict['uly']:img_crop_dict['bry'],
-                         img_crop_dict['ulx']:img_crop_dict['brx']
-                         ]
+                img_crop_dict['uly']:img_crop_dict['bry'],
+                img_crop_dict['ulx']:img_crop_dict['brx']
+            ]
 
             cv2.imwrite(
                 filename=img_square_url,
@@ -337,8 +337,8 @@ def crop_glass(
             )
 
             log = 'Calculated square window at:      ' + \
-                  '{0}, {1}, {2}, {3} (upper, lower, left, right).'. \
-                      format(img_crop_dict['uly'], img_crop_dict['bry'], img_crop_dict['ulx'], img_crop_dict['brx'])
+                  '{0}, {1}, {2}, {3} (upper, lower, left, right).'.\
+                  format(img_crop_dict['uly'], img_crop_dict['bry'], img_crop_dict['ulx'], img_crop_dict['brx'])
             logger.info(msg=log)
             print(log)
 
@@ -498,7 +498,7 @@ def rotate(
             if img_orig_h == 1536:
                 img_crop_dict = {
                     'ulx': img_ang_list[0] - 240,
-                    'uly': img_ang_list[1] + 95,
+                    'uly': img_ang_list[1] + 90,
                     'brx': img_ang_list[0] + 240,
                     'bry': img_ang_list[1] + 205
                 }
@@ -507,14 +507,17 @@ def rotate(
                     'ulx': img_ang_list[0] - 390,
                     'uly': img_ang_list[1] + 140,
                     'brx': img_ang_list[0] + 390,
-                    'bry': img_ang_list[1] + 310
+                    'bry': img_ang_list[1] + 320
                 }
 
             img_rect = img_grotd[
                 img_crop_dict['uly']:img_crop_dict['bry'],
                 img_crop_dict['ulx']:img_crop_dict['brx']
             ]
-            img_h = img_rect.shape[0]
+            img_rect_h = img_rect.shape[0]
+            img_rect_w = img_rect.shape[1]
+            img_rect_ctr_x = int(img_rect_w / 2)
+            img_rect_ctr_y = int(img_rect_h / 2)
 
             img_gray = cv2.cvtColor(
                 src=img_rect,
@@ -526,53 +529,93 @@ def rotate(
                 maxval=255,
                 type=cv2.THRESH_BINARY_INV
             )
-            # cv2.imwrite(
-            #     filename=img_frotd_url + '-thresh.jpg',
-            #     img=img_thresh,
-            #     params=[
-            #         int(cv2.IMWRITE_JPEG_QUALITY),
-            #         100
-            #     ]
-            # )
 
-            l_lower = 0
-            r_lower = 0
+            l_upper = 0
+            r_upper = 0
 
             left = 0
             right = 0
+            upper = 0
 
-            if img_orig_h == 1536:
-                left = 90
-                right = 380
-            elif img_orig_h == 2464:
-                left = 150
-                right = 620
+            y_pixels = iter(range(0, img_rect_h))
+            y_pix_black_edge = True
+            for y_pix in y_pixels:
+                if img_thresh[y_pix][int(img_rect_w / 2)] == 255:
+                    pass
+                if img_thresh[y_pix][int(img_rect_w / 2)] == 0:
+                    y_pix_black_edge = False
+                    continue
 
-            for y_pix in range((img_h - 1), 0, -1):
+                if not y_pix_black_edge and \
+                        img_thresh[y_pix][int(img_rect_w / 2)] == 255:
+                    upper = y_pix + 10
+                    break
+
+            x_pixels = iter(range(0, img_rect_w))
+            x_pix_black_edge = True
+            for x_pix in x_pixels:
+                if img_thresh[upper][x_pix] == 255:
+                    pass
+                elif img_thresh[upper][x_pix] == 0:
+                    x_pix_black_edge = False
+                    continue
+
+                if not x_pix_black_edge and \
+                        img_thresh[upper][x_pix] == 255:
+                    left = x_pix + 10
+                    break
+
+            x_pixels = iter(range((img_rect_w - 1), 0, -1))
+            x_pix_black_edge = True
+            for x_pix in x_pixels:
+                if img_thresh[upper][x_pix] == 255:
+                    pass
+                elif img_thresh[upper][x_pix] == 0:
+                    x_pix_black_edge = False
+                    continue
+
+                if not x_pix_black_edge and \
+                        img_thresh[upper][x_pix] == 255:
+                    right = x_pix - 10
+                    break
+
+            y_pixels = iter(range(0, img_rect_h))
+            y_pix_black_edge = True
+            for y_pix in y_pixels:
                 if img_thresh[y_pix][left] == 255:
-                    l_lower = y_pix
+                    pass
+                if img_thresh[y_pix][left] == 0:
+                    y_pix_black_edge = False
+                    continue
+
+                if not y_pix_black_edge and \
+                        img_thresh[y_pix][left] == 255:
+                    l_upper = y_pix
                     break
 
-            for y_pix in range((img_h - 1), 0, -1):
+            y_pixels = iter(range(0, img_rect_h))
+            y_pix_black_edge = True
+            for y_pix in y_pixels:
                 if img_thresh[y_pix][right] == 255:
-                    r_lower = y_pix
-                    break
+                    pass
+                if img_thresh[y_pix][right] == 0:
+                    y_pix_black_edge = False
+                    continue
 
-            # print('LEFT COORDS: {0}, {1}'.format(left, l_lower))
-            # print('RIGHT COORDS: {0}, {1}'.format(right, r_lower))
+                if not y_pix_black_edge and \
+                        img_thresh[y_pix][right] == 255:
+                    r_upper = y_pix
+                    break
 
             img_rect_ang = math.degrees(
                 math.atan2(
-                    r_lower - l_lower,
+                    r_upper - l_upper,
                     right - left
                 )
             )
             img_rect_ang = round(img_rect_ang, 2)
+            img_frotd_ctr = [img_rect_ctr_x, img_rect_ctr_y]
 
-            img_frotd_ctr = [left, l_lower]
-
-            img_rect_h = img_rect.shape[0]
-            img_rect_w = img_rect.shape[1]
             m_frotd = cv2.getRotationMatrix2D(
                 center=(
                     img_frotd_ctr[0],
@@ -621,8 +664,7 @@ def rotate(
 def crop_rect(
         img_rotd,
         img_rect_url: str,
-        img_digw_url: str,
-        tf_dict: dict,
+        img_digw_url: str
 ) -> tuple:
     """
     Crops digit rectangle for given image
@@ -630,7 +672,6 @@ def crop_rect(
     :param img_rotd: opencv image
     :param img_rect_url: str
     :param img_digw_url: str
-    :param tf_dict: dict
 
     :return img_digw: opencv image
     :return img_rect_err: bool
@@ -641,8 +682,6 @@ def crop_rect(
     lower = 0
     left = 0
     right = 0
-
-    tf_lower = tf_dict['shadow'] + tf_dict['height']
 
     if img_rotd is not None:
         try:
@@ -659,41 +698,78 @@ def crop_rect(
                 type=cv2.THRESH_BINARY_INV
             )
 
-            for y_pix in range(0, img_rotd_h):
-                if img_thresh[y_pix][int(img_rotd_w / 2)] == 255:
-                    upper = y_pix
-                    break
+            lx_offset = 3
+            rx_offset = -23
+            uy_offset = 3
+            ly_offset = -1
 
-            for y_pix in range((img_rotd_h - 1), 0, -1):
-                if (img_thresh[y_pix][int(img_rotd_w / 2)] == 255) and \
-                        (img_thresh[y_pix - 5][int(img_rotd_w / 2)] == 255):
+            y_pixels = iter(range((img_rotd_h - 1), 0, -1))
+            y_pix_black_edge = True
+            for y_pix in y_pixels:
+                if img_thresh[y_pix][int(img_rotd_w / 2)] == 255:
+                    pass
+                if img_thresh[y_pix][int(img_rotd_w / 2)] == 0:
+                    y_pix_black_edge = False
+                    continue
+
+                if not y_pix_black_edge and \
+                        (img_thresh[y_pix][int(img_rotd_w / 2)] == 255):
                     lower = y_pix
                     break
 
-            for x_pix in range(0, img_rotd_w):
-                # Five checks to avoid false positive with needle in rest position
-                if (img_thresh[lower - 5][x_pix] == 255) and \
-                        (img_thresh[lower - 5][x_pix + 10] == 255) and \
-                        (img_thresh[lower - 5][x_pix + 20] == 255) and \
-                        (img_thresh[lower - 5][x_pix + 30] == 255):
+            y_pixels = iter(range(0, img_rotd_h))
+            y_pix_black_edge = True
+            for y_pix in y_pixels:
+                if img_thresh[y_pix][int(img_rotd_w / 2)] == 255:
+                    pass
+                if img_thresh[y_pix][int(img_rotd_w / 2)] == 0:
+                    y_pix_black_edge = False
+                    continue
+
+                if not y_pix_black_edge and \
+                        img_thresh[y_pix][int(img_rotd_w / 2)] == 255:
+                    upper = y_pix
+                    break
+
+            x_pixels = iter(range(0, img_rotd_w))
+            x_pix_black_edge = True
+            for x_pix in x_pixels:
+                if img_thresh[upper + uy_offset][x_pix] == 255:
+                    pass
+                elif img_thresh[upper + uy_offset][x_pix] == 0:
+                    x_pix_black_edge = False
+                    continue
+
+                if not x_pix_black_edge and \
+                        img_thresh[upper + uy_offset][x_pix] == 255:
                     left = x_pix
                     break
 
-            for x_pix in range((img_rotd_w - 1), 0, -1):
-                if img_thresh[lower - 40][x_pix] == 255:
+            y_half = int((lower + upper)/2)
+            x_pixels = iter(range((img_rotd_w - 1), 0, -1))
+            x_pix_black_edge = True
+            for x_pix in x_pixels:
+                if img_thresh[y_half][x_pix] == 255:
+                    pass
+                elif img_thresh[y_half][x_pix] == 0:
+                    x_pix_black_edge = False
+                    continue
+
+                if not x_pix_black_edge and \
+                        img_thresh[y_half][x_pix] == 255:
                     right = x_pix
                     break
 
             log = 'Calculated raw digit window edges at:      ' + \
-                  '{0}, {1}, {2}, {3} (upper, lower, left, right).'.format(upper, lower, left, right)
+                '{0}, {1}, {2}, {3} (upper, lower, left, right).'.\
+                format(upper, lower, left, right)
             logger.info(msg=log)
             print(log)
 
-            ulx0 = left + 1
-            uly0 = upper + 2
-            brx0 = right - 23  # Crop off non-moving bushing from right edge
-            bry0 = lower - 1
-            img_h = bry0 - uly0
+            ulx0 = left + lx_offset
+            uly0 = upper + uy_offset
+            brx0 = right + rx_offset
+            bry0 = lower + ly_offset
 
             # Make image width evenly divisible by 6
             length_rem = (brx0 - ulx0) % 6
@@ -701,59 +777,6 @@ def crop_rect(
                 brx0 -= length_rem
             elif (length_rem >= 4) and (length_rem < 6):
                 brx0 += 6 - length_rem
-
-            log = 'Calculated adjusted digit window edges at: ' + \
-                  '{0}, {1}, {2}, {3} (upper, lower, left, right).'.format(uly0, bry0, ulx0, brx0)
-            logger.info(msg=log)
-            print(log)
-
-            img_crop_dict1 = {
-                'ulx': ulx0,
-                'uly': uly0,
-                'brx': brx0,
-                'bry': bry0
-            }
-            img_digw = img_rotd[
-                       img_crop_dict1['uly']:img_crop_dict1['bry'],
-                       img_crop_dict1['ulx']:img_crop_dict1['brx']
-                       ]
-
-            # If Image height is less than tensor flow requirements, pad the upper edge
-            # with sufficient rows to create proper sized digit image and add one row
-            # to bottom edge.
-            # if img_h < tf_lower:
-            #     top = tf_lower - img_h
-            #     img_digw = cv2.copyMakeBorder(
-            #         src=img_digw,
-            #         top=top,
-            #         bottom=0,
-            #         left=0,
-            #         right=0,
-            #         borderType=cv2.BORDER_CONSTANT,
-            #         value=(0, 0, 0)
-            #     )
-            #     img_digw = cv2.copyMakeBorder(
-            #         src=img_digw,
-            #         top=0,
-            #         bottom=1,
-            #         left=0,
-            #         right=0,
-            #         borderType=cv2.BORDER_REPLICATE
-            #     )
-            #
-            #     log = 'Added {0} rows to top and 1 row to bottom of {1}.'. \
-            #         format(top, img_digw_url)
-            #     logger.info(msg=log)
-            #     print(log)
-
-            cv2.imwrite(
-                filename=img_digw_url,
-                img=img_digw,
-                params=[
-                    int(cv2.IMWRITE_JPEG_QUALITY),
-                    100
-                ]
-            )
 
             cv2.line(
                 img=img_rotd,
@@ -794,6 +817,31 @@ def crop_rect(
                 ]
             )
 
+            log = 'Calculated adjusted digit window edges at: ' + \
+                  '{0}, {1}, {2}, {3} (upper, lower, left, right).'.format(uly0, bry0, ulx0, brx0)
+            logger.info(msg=log)
+            print(log)
+
+            img_crop_dict1 = {
+                'ulx': ulx0,
+                'uly': uly0,
+                'brx': brx0,
+                'bry': bry0
+            }
+            img_digw = img_rotd[
+                img_crop_dict1['uly']:img_crop_dict1['bry'],
+                img_crop_dict1['ulx']:img_crop_dict1['brx']
+            ]
+
+            cv2.imwrite(
+                filename=img_digw_url,
+                img=img_digw,
+                params=[
+                    int(cv2.IMWRITE_JPEG_QUALITY),
+                    100
+                ]
+            )
+
             log = 'Successfully cropped digit window in image: {0}'. \
                 format(img_digw_url)
             logger.info(msg=log)
@@ -820,9 +868,7 @@ def crop_rect(
 def crop_digits(
         img_digw,
         img_digw_url: str,
-        img_path_dict: dict,
-        tf_dict: dict,
-        mode_str: str
+        img_path_dict: dict
 ) -> bool:
     """
     Crops and saves given image as separate digits
@@ -830,31 +876,12 @@ def crop_digits(
     :param img_digw: opencv image
     :param img_digw_url: str
     :param img_path_dict: dict
-    :param tf_dict: dict
-    :param mode_str: str
 
     :return img_digs_err: bool
     """
     img_digs_err = False
 
-    # img_upper = tf_dict['shadow']
     img_upper = 0
-    # img_lower = tf_dict['shadow'] + tf_dict['height']
-    if mode_str == 'train':
-        if (tf_dict['full_width'] % 2) == 0:
-            img_left = int(tf_dict['full_width'] / 2)
-            img_right = int(tf_dict['full_width'] / 2)
-        else:
-            img_left = int((tf_dict['full_width'] / 2) + 0.5)
-            img_right = int((tf_dict['full_width'] / 2) - 0.5)
-
-    else:
-        if (tf_dict['tf_width'] % 2) == 0:
-            img_left = int(tf_dict['tf_width'] / 2)
-            img_right = int(tf_dict['tf_width'] / 2)
-        else:
-            img_left = int((tf_dict['tf_width'] / 2) + 0.5)
-            img_right = int((tf_dict['tf_width'] / 2) - 0.5)
 
     if img_digw is not None:
         img_inv_url = os.path.join(
@@ -882,7 +909,7 @@ def crop_digits(
             # 125 original
             thresh, img_thresh = cv2.threshold(
                 src=img_gray,
-                thresh=75,
+                thresh=120,
                 maxval=255,
                 type=cv2.THRESH_BINARY_INV
             )
@@ -903,15 +930,11 @@ def crop_digits(
             for digit in range(0, 6):
                 img_dig_url = os.path.join(
                     img_path_dict['digs'],
-                    'digs' + '_d' + str(5 - digit) + os.path.basename(img_digw_url)[4::]
-                )
-                img_tdig_url = os.path.join(
-                    img_path_dict['pred'],
-                    'pred' + '_d' + str(5 - digit) + os.path.basename(img_digw_url)[4::]
+                    'digs' + '_d' + str(digit) + os.path.basename(img_digw_url)[4::]
                 )
                 img_cont_url = os.path.join(
                     img_path_dict['cont'],
-                    'cont' + '_d' + str(5 - digit) + os.path.basename(img_digw_url)[4::]
+                    'cont' + '_d' + str(digit) + os.path.basename(img_digw_url)[4::]
                 )
 
                 start_x = digit * dig_w
@@ -935,19 +958,15 @@ def crop_digits(
                 # Must find contour of greatest width and set tensor window accordingly
                 # Perhaps set cnt_x to right side of frame and test for cnt_x <= cnt_x
                 cnt_w = 0
-                cnt_x = 0
+                cnt_l = 0
                 for contour in range(0, len(contours)):
                     x, y, w, h = cv2.boundingRect(contours[contour])
                     if (w > 10) and (w > cnt_w):
                         cnt_w = w
-                        cnt_x = x
+                        cnt_l = x
 
-                cnt_ctr = cnt_x + int(cnt_w / 2)
-
-                log = 'Digit {0} tensor flow raw horizontal boundaries '.format(digit) + \
-                      'are:     {0}, {1}, and {2} (left, center, right).'.format(cnt_x, cnt_ctr, (cnt_x + cnt_w))
-                logger.info(msg=log)
-                print(log)
+                cnt_ctr = cnt_l + int(cnt_w / 2)
+                cnt_r = cnt_l + cnt_w
 
                 cv2.line(
                     img=img_dig_cnt,
@@ -965,8 +984,8 @@ def crop_digits(
                 )
                 cv2.line(
                     img=img_dig_cnt,
-                    pt1=(cnt_x, 0),
-                    pt2=(cnt_x, img_h),
+                    pt1=(cnt_l, 0),
+                    pt2=(cnt_l, img_h),
                     color=(0, 255, 0),
                     thickness=1
                 )
@@ -979,38 +998,21 @@ def crop_digits(
                 )
                 cv2.line(
                     img=img_dig_cnt,
-                    pt1=((cnt_x + cnt_w), 0),
-                    pt2=((cnt_x + cnt_w), img_h),
+                    pt1=(cnt_r, 0),
+                    pt2=(cnt_r, img_h),
                     color=(0, 255, 0),
                     thickness=1
                 )
 
-                # If contour width is over 48, very likely due to glare on digit drum
-                # Adjust center line of digit to account for this glare
-                if cnt_w >= 48:
-                    # Glare skewed to right
-                    # Move central point to left
-                    if cnt_ctr > dig_w_ctr:
-                        cnt_ctr = cnt_x + 24
-
-                    # Glare skewed to left
-                    # Move left edge to right full difference
-                    elif cnt_ctr < dig_w_ctr:
-                        cnt_ctr = cnt_x + cnt_w - 24
-
-                # left = cnt_ctr - img_left
-                # right = cnt_ctr + img_right
-                left = cnt_x - 3
-                right = cnt_x + cnt_w + 3
+                left = cnt_l - 10
+                right = cnt_r + 10
 
                 # if contour is erroneously left-shifted
                 if left < 0:
                     left = 0
-                    # right = dig_w_ctr + img_right
 
                 # if contour is erroneously right-shifted
                 elif right >= dig_w:
-                    # left = dig_w_ctr - img_left
                     right = dig_w - 1
 
                 log = 'Digit {0} tensor flow adjusted horizontal boundaries '.format(digit) + \
@@ -1041,36 +1043,19 @@ def crop_digits(
                     ]
                 )
 
-                if mode_str == 'train':
-                    print('CROP IMAGE SAVE DIGITS')
-                    cv2.imwrite(
-                        filename=img_dig_url,
-                        img=img_dig_gray[img_upper:img_lower, left:right],
-                        params=[
-                            int(cv2.IMWRITE_JPEG_QUALITY),
-                            100
-                        ]
-                    )
+                log = 'Digit {0} tensor flow raw horizontal boundaries '.format(digit) + \
+                      'are:      {0}, {1}, and {2} (left, center, right).'.format(cnt_l, cnt_ctr, cnt_r)
+                logger.info(msg=log)
+                print(log)
 
-                elif mode_str == 'test':
-                    cv2.imwrite(
-                        filename=img_dig_url,
-                        img=img_dig_gray[img_upper:img_lower, left:right],
-                        params=[
-                            int(cv2.IMWRITE_JPEG_QUALITY),
-                            100
-                        ]
-                    )
-
-                elif mode_str == 'pred':
-                    cv2.imwrite(
-                        filename=img_tdig_url,
-                        img=img_dig_gray[img_upper:img_lower, left:right],
-                        params=[
-                            int(cv2.IMWRITE_JPEG_QUALITY),
-                            100
-                        ]
-                    )
+                cv2.imwrite(
+                    filename=img_dig_url,
+                    img=img_dig_gray[img_upper:img_lower, left:right],
+                    params=[
+                        int(cv2.IMWRITE_JPEG_QUALITY),
+                        100
+                    ]
+                )
 
             log = 'Successfully cropped digits from {0}.'. \
                 format(img_inv_url)
@@ -1096,6 +1081,7 @@ def crop_digits(
 
 
 def overlay(
+        img_orig_size: str,
         img_digw_url: str,
         img_olay_url: str,
         img_olay_text: str
@@ -1103,6 +1089,7 @@ def overlay(
     """
     Adds meter value banner to bottom of given image and saves
 
+    :param img_orig_size: str
     :param img_digw_url: str
     :param img_olay_url: str
     :param img_olay_text: str
@@ -1137,16 +1124,41 @@ def overlay(
             # Open image, add text, save, and close image
             img_olay = Image.open(fp=img_olay_url)
             img_olay_draw = ImageDraw.Draw(im=img_olay)
-            img_olay_font = ImageFont.truetype(
-                font="DejaVuSans.ttf",
-                size=18
-            )
-            img_olay_draw.text(
-                xy=(10, (bry + 4)),
-                text=img_olay_text,
-                fill=(255, 255, 0, 255),
-                font=img_olay_font
-            )
+
+            if img_orig_size == 'A':
+                img_olay_font = ImageFont.truetype(
+                    font="DejaVuSans.ttf",
+                    size=18
+                )
+                img_olay_draw.text(
+                    xy=(10, (bry + 4)),
+                    text=img_olay_text,
+                    fill=(255, 255, 0, 255),
+                    font=img_olay_font
+                )
+            elif img_orig_size == 'B':
+                img_olay_font = ImageFont.truetype(
+                    font="DejaVuSans.ttf",
+                    size=11
+                )
+                img_olay_draw.text(
+                    xy=(10, (bry + 6)),
+                    text=img_olay_text,
+                    fill=(255, 255, 0, 255),
+                    font=img_olay_font
+                )
+            else:
+                img_olay_font = ImageFont.truetype(
+                    font="DejaVuSans.ttf",
+                    size=11
+                )
+                img_olay_draw.text(
+                    xy=(10, (bry + 6)),
+                    text=img_olay_text,
+                    fill=(255, 255, 0, 255),
+                    font=img_olay_font
+                )
+
             img_olay.save(
                 fp=img_olay_url,
                 format='jpeg',
@@ -1158,6 +1170,7 @@ def overlay(
             log = 'PIL successfully overlaid image {0}.'. \
                 format(img_olay_url)
             logger.info(msg=log)
+            print(log)
 
         except Exception as exc:
             img_olay_err = True

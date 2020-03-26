@@ -51,7 +51,6 @@ def h264_to_jpg(
                 '-q:v 1 ' + \
                 str(img_orig_url)
             cmd_err, rtn_code, std_out = os_cmd.os_cmd(
-                err_xmit_url='',
                 cmd_str=cmd_str
             )
 

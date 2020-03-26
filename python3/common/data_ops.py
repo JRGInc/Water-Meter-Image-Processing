@@ -159,7 +159,7 @@ class SplitDatasetInception:
 
 def prepare_data_inception(
     mode: str,
-    tf_dict: dict,
+    incept_dict: dict,
     img_root_dir: str = '',
     img_url: str = '',
     img_cache_dir: str = ''
@@ -174,7 +174,7 @@ def prepare_data_inception(
         img_count = len(list(img_dir.glob('*/*.jpg')))
         img_list_ds = tf.data.Dataset.list_files(str(img_dir / '*/*'))
 
-    elif mode == 'test':
+    elif (mode == 'test') or (mode == 'pred'):
         img_count = 1
         img_list_ds = tf.data.Dataset.list_files(img_url)
 
@@ -191,13 +191,13 @@ def prepare_data_inception(
         # convert the compressed string to a 3D uint8 tensor
         img = tf.image.decode_jpeg(
             img,
-            channels=tf_dict['nbr_channels']
+            channels=incept_dict['nbr_channels']
         )
         # resize the image to the desired size.
         img = tf.image.resize_with_pad(
             img,
-            tf_dict['img_tgt_width'],
-            tf_dict['img_tgt_height']
+            incept_dict['img_tgt_width'],
+            incept_dict['img_tgt_height']
         )
         # Use `convert_image_dtype` to convert to floats in the [0,1] range.
         return tf.image.convert_image_dtype(
@@ -258,10 +258,10 @@ def prepare_data_inception(
         img_ds = prepare(
             ds=img_labeled_ds,
             cache=img_cache_dir,
-            batch_size=tf_dict['batch_size']
+            batch_size=incept_dict['batch_size']
         )
-    elif mode == 'test':
-        img_ds = img_labeled_ds.batch(batch_size=tf_dict['batch_size'])
+    elif (mode == 'test') or (mode == 'pred'):
+        img_ds = img_labeled_ds.batch(batch_size=incept_dict['batch_size'])
 
     return img_ds, img_count
 

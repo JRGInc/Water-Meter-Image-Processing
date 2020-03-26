@@ -490,21 +490,21 @@ def reduction_b(
 
 
 def create_inception_v4(
-    tf_dict: dict
+    incept_dict: dict
 ):
     """
     Creates a inception v4 network
 
-    :param tf_dict: dict
+    :param incept_dict: dict
 
     :return: Keras Model with 1 input and 1 output
     """
 
     init = Input(batch_shape=(
-        tf_dict['batch_size'],
-        tf_dict['img_tgt_width'],
-        tf_dict['img_tgt_height'],
-        tf_dict['nbr_channels']
+        incept_dict['batch_size'],
+        incept_dict['img_tgt_width'],
+        incept_dict['img_tgt_height'],
+        incept_dict['nbr_channels']
     ))
 
     channel_axis = -1
@@ -562,7 +562,7 @@ def create_inception_v4(
 
     # Output
     out = Dense(
-        units=tf_dict['nbr_classes'],
+        units=incept_dict['nbr_classes'],
         activation=tf.nn.softmax
     )(x)
 

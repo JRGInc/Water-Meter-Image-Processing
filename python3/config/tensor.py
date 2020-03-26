@@ -38,9 +38,9 @@ class TensorCfg(object):
                 'Digit',
                 'full_width'
             ),
-            'tf_width': self.config.getint(
+            'dig_width': self.config.getint(
                 'Digit',
-                'tf_width'
+                'dig_width'
             ),
             'shadow': self.config.getint(
                 'Digit',
@@ -64,7 +64,7 @@ class TensorCfg(object):
         self.incept_dict = {
             'mdl': os.path.join(
                 core_path_dict['mdls'],
-                'inception_v4/pb/saved_model.pb'
+                'inception_v4/pb/'
             ),
             'wgts': os.path.join(
                 core_path_dict['wgts'],

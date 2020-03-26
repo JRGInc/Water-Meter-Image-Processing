@@ -19,8 +19,8 @@ class CoreCfg(object):
         """
         Sets object properties directly
         """
-        base_dir = os.path.dirname('/opt/Janus/WM/')
-        program_dir = '2020_METER_PROCESSING/'
+        base_dir = os.path.dirname('/opt/Janus/')
+        program_dir = 'Water-Meter-Image-Processing/'
         self.program_dir = os.path.join(
             base_dir,
             program_dir
@@ -80,8 +80,7 @@ class CoreCfg(object):
             'inv': '07--inverted',
             'cont': '08--contoured/',
             'digs': '09--digits/',
-            'pred': '10--prediction/',
-            'olay': '11--overlaid/'
+            'olay': '10--overlaid/'
         }
 
         # Define full urls for files in /images path
@@ -121,10 +120,6 @@ class CoreCfg(object):
             'digs': os.path.join(
                 self.core_path_dict['imgs'],
                 img_dirs_dict['digs']
-            ),
-            'pred': os.path.join(
-                self.core_path_dict['imgs'],
-                img_dirs_dict['pred']
             ),
             'olay': os.path.join(
                 self.core_path_dict['imgs'],

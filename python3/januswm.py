@@ -2,15 +2,14 @@
 __author__ = 'Larry A. Hartman'
 __company__ = 'Janus Research'
 
+import cv2
 import logging
 import os
-import tensorflow as tf
 import time
 from common import img_ops
 from config.core import CoreCfg
 from config.tensor import TensorCfg
 from machine.tensor import Tensor
-from machine import yolo_v3
 
 if __name__ == '__main__':
     logfile = 'januswm-capture'
@@ -20,7 +19,9 @@ if __name__ == '__main__':
 
     # Error values dictionary
     err_vals_dict = {
+        'shape': True,
         'build_yolo': True,
+        'build_incept': True,
         'detection': True,
         'img_bbox': True,
         'img_angle': True,
@@ -42,10 +43,12 @@ if __name__ == '__main__':
 
     tensor = Tensor(core_cfg=core_cfg)
     err_vals_dict['build_yolo'], yolo_model, yolo_classes = tensor.build_yolo_model()
+    err_vals_dict['build_incept'], incept_model = tensor.build_incept_model()
 
     bboxes = None
     if not err_vals_dict['build_yolo']:
-        for img_orig_name in sorted(os.listdir(img_path_dict['orig'])):
+        img_orig_names = iter(sorted(os.listdir(img_path_dict['orig'])))
+        for img_orig_name in img_orig_names:
 
             img_orig_url = os.path.join(
                 img_path_dict['orig'],
@@ -63,7 +66,28 @@ if __name__ == '__main__':
                 img_path_dict['frotd'],
                 'frotd_' + img_orig_name[6::]
             )
-            print(img_frotd_url)
+            img_rect_url = os.path.join(
+                img_path_dict['rect'],
+                'rect_' + img_orig_name[6::]
+            )
+            img_digw_url = os.path.join(
+                img_path_dict['digw'],
+                'digw_' + img_orig_name[6::]
+            )
+            img_olay_url = os.path.join(
+                img_path_dict['olay'],
+                'olay_' + img_orig_name[6::]
+            )
+
+            img_orig = cv2.imread(filename=img_orig_url)
+            print(img_orig.shape)
+            img_orig_size = None
+            if (img_orig.shape[0] == 2464) and (img_orig.shape[1] == 3280):
+                img_orig_size = 'A'
+            elif (img_orig.shape[0] == 1536) and (img_orig.shape[1] == 1536):
+                img_orig_size = 'B'
+            else:
+                continue
 
             err_vals_dict['detection'], img_orig, bbox_dict = tensor.detect_yolo(
                 model=yolo_model,
@@ -91,62 +115,56 @@ if __name__ == '__main__':
                     img_ang_list=img_ang_list,
                 )
                 print('Rotation error: {0}'.format(err_vals_dict['img_rotd']))
-    #
-    # # Crop to individual digits if no gray-scale error
-    # img_digw = None
-    # if not err_vals_dict['img_rotd']:
-    #
-    #     # Crop close to digit window, leave some space for differences in zoom
-    #     img_digw, err_vals_dict['img_digw'] = img_ops.crop_rect(
-    #         img_rotd=img_rotd,
-    #         img_rect_url=img_url_dict['rect'],
-    #         img_digw_url=img_url_dict['digw'],
-    #         tf_dict=tf_dict
-    #     )
-    #     print('Digit window error: {0}'.format(err_vals_dict['img_digw']))
-    #
-    # if not err_vals_dict['img_digw']:
-    #     err_vals_dict['img_digs'] = img_ops.crop_digits(
-    #         img_digw=img_digw,
-    #         img_digw_url=img_url_dict['digw'],
-    #         img_path_dict=img_path_dict,
-    #         tf_dict=tf_dict,
-    #         mode_str='pred',
-    #     )
-    #     print('Crop digits error: {0}'.format(err_vals_dict['img_digs']))
-    #
-    # img_olay_text = 'Date & Time: ' + \
-    #     img_orig_dtg.split('_')[0] + \
-    #     ' ' + img_orig_dtg.split('_')[1]
-    #
-    #
-    # # Execute TensorFlow prediction
-    # timeb = time.time()
-    #
-    # # Only import this library if predictions are enabled and
-    # # image is successfully converted to numpy array
-    #
-    # err_vals_dict['pred_vals'], pred_list, img_olay_text_values = tensor.predict_inception(
-    #     img_seq=img_seq,
-    #     img_digw_url=img_url_dict['digw'],
-    #     img_orig_dtg=img_orig_dtg,
-    #     tf_dict=tf_dict
-    # )
-    # img_olay_text = img_olay_text + img_olay_text_values
-    # print('Prediction time elapsed: {0} sec'.format(time.time() - timeb))
-    #
-    # # Overlay image with date-time stamp and value if
-    # # no TensorFlow error.
-    # # if not err_vals_dict['pred_vals']:
-    # else:
-    #     img_olay_text = img_olay_text + '           Prediction Not Enabled'
-    #
-    # if not err_vals_dict['img_digw']:
-    #     err_vals_dict['img_olay'] = img_ops.overlay(
-    #         img_digw_url=img_url_dict['digw'],
-    #         img_olay_url=img_url_dict['olay'],
-    #         img_olay_text=img_olay_text
-    #     )
-    #     print('Overlay error: {0}'.format(err_vals_dict['img_olay']))
+
+            # Crop to individual digits if no gray-scale error
+            img_digw = None
+            if not err_vals_dict['img_rotd']:
+
+                # Crop close to digit window, leave some space for differences in zoom
+                img_digw, err_vals_dict['img_digw'] = img_ops.crop_rect(
+                    img_rotd=img_rotd,
+                    img_rect_url=img_rect_url,
+                    img_digw_url=img_digw_url
+                )
+                print('Digit window error: {0}'.format(err_vals_dict['img_digw']))
+
+            if not err_vals_dict['img_digw']:
+                err_vals_dict['img_digs'] = img_ops.crop_digits(
+                    img_digw=img_digw,
+                    img_digw_url=img_digw_url,
+                    img_path_dict=img_path_dict
+                )
+                print('Crop digits error: {0}'.format(err_vals_dict['img_digs']))
+
+            img_orig_dtg = str(img_orig_name).split('_')[1] + ' ' + \
+                str(img_orig_name).split('_')[2]
+            img_olay_text = 'Date & Time: ' + img_orig_dtg
+            if not err_vals_dict['img_digs']:
+
+                # Execute TensorFlow prediction
+                timeb = time.time()
+
+                # Only import this library if predictions are enabled and
+                # image is successfully converted to numpy array
+
+                err_vals_dict['pred_vals'], pred_list, img_olay_text_values = tensor.predict_inception(
+                    model=incept_model,
+                    img_digw_url=img_digw_url,
+                    img_orig_dtg=img_orig_dtg,
+                    incept_dict=incept_dict
+                )
+                img_olay_text = img_olay_text + img_olay_text_values
+                print('Prediction time elapsed: {0} sec'.format(time.time() - timeb))
+
+                # Overlay image with date-time stamp and value if
+                # no TensorFlow error.
+                if not err_vals_dict['pred_vals']:
+                    err_vals_dict['img_olay'] = img_ops.overlay(
+                        img_orig_size=img_orig_size,
+                        img_digw_url=img_digw_url,
+                        img_olay_url=img_olay_url,
+                        img_olay_text=img_olay_text
+                    )
+                    print('Overlay error: {0}'.format(err_vals_dict['img_olay']))
 
     print('Total processing time elapsed: {0} sec'.format(time.time() - timea))
