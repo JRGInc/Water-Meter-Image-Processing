@@ -132,28 +132,27 @@ class Tensor:
         return build_err, model
 
     def detect_yolo(
-        self,
-        model,
-        img_orig_url,
-        img_bbox_url,
-        classes
+            self,
+            model,
+            img_orig,
+            img_orig_shape,
+            img_save: bool,
+            img_bbox_url: str,
+            classes
     ) -> (bool, list):
 
         detect_err = False
-        img_orig = None
 
         yolo_dict = self.tensor_cfg.get(attrib='yolo_dict')
 
         sorted_bbox = {}
         try:
-            img_orig = cv2.imread(filename=img_orig_url)
             img_inverse = cv2.cvtColor(
                 src=img_orig,
                 code=cv2.COLOR_BGR2RGB
             )
 
             # Predict Process
-            image_size = img_inverse.shape[:2]
             preprocess_err, image_data = img_ops.preprocess_yolo(
                 img_orig=np.copy(img_inverse),
                 target_size=[
@@ -174,9 +173,8 @@ class Tensor:
                 axis=0
             )
             postprocess_err, bboxes, best_bboxes = img_ops.postprocess_boxes_yolo(
-                img_orig_url=img_orig_url,
                 pred_bbox=pred_bbox,
-                org_img_shape=image_size,
+                org_img_shape=img_orig_shape[0:2],
                 input_size=yolo_dict['input_size'],
                 score_threshold=yolo_dict['score_thresh']
             )
@@ -187,14 +185,17 @@ class Tensor:
                 #     code=cv2.COLOR_RGB2BGR
                 # )
                 draw_bbox_err, img_bbox = img_ops.draw_bbox_yolo(
-                    img_orig,
-                    best_bboxes,
-                    classes
+                    img_orig=img_orig.copy(),
+                    img_orig_shape=img_orig_shape,
+                    bboxes=best_bboxes,
+                    classes=classes
                 )
-                cv2.imwrite(
-                    filename=img_bbox_url,
-                    img=img_bbox
-                )
+
+                if img_save:
+                    cv2.imwrite(
+                        filename=img_bbox_url,
+                        img=img_bbox
+                    )
 
             for bbox in best_bboxes:
                 coor = np.array(
@@ -225,21 +226,21 @@ class Tensor:
             print(log)
             print(exc)
 
-        return detect_err, img_orig, sorted_bbox
+        return detect_err, sorted_bbox
 
     def predict_inception(
             self,
             model,
+            img_digs,
             img_orig_dtg: str,
-            img_digw_url: str,
             incept_dict: dict
     ) -> [bool, list]:
         """
         Generates and returns predictions for each digit using TensorFlow
 
         :param model
+        :param img_digs
         :param img_orig_dtg: str
-        :param img_digw_url: str
         :param incept_dict: dict
 
         :return pred_err: bool
@@ -251,105 +252,91 @@ class Tensor:
         timea = ttime.time()
 
         pred_err = False
-
-        img_path_dict = self.core_cfg.get(attrib='img_path_dict')
-
         pred_list = [
             img_orig_dtg,
             '',
             'V'
         ]
 
-        if os.path.isfile(path=img_digw_url):
-            try:
-                for digit in range(0, 6):
-                    img_pred_url = os.path.join(
-                        img_path_dict['digs'],
-                        'digs' + '_d' + str(digit) + os.path.basename(img_digw_url)[4::]
-                    )
-                    if os.path.isfile(path=img_pred_url):
-                        pred_ds, pred_count = data_ops.prepare_data_inception(
-                            mode='pred',
-                            img_url=img_pred_url,
-                            incept_dict=incept_dict
-                        )
-                        pred_steps = np.ceil(pred_count / incept_dict['batch_size'])
-                        predictions = model.predict(
-                            x=pred_ds,
-                            steps=pred_steps
-                        )
-                        for element in predictions:
-                            prediction = element.argmax(axis=0)
-                            confidence = element[prediction]
-                            print('Prediction is {0}, with probability {1}'.
-                                  format(prediction, confidence))
+        try:
+            for digit in range(0, 6):
 
-                            if confidence < 0.80:
-                                pred_list[1] += 'R'
-                                pred_list[2] = 'I'
+                img_pred_rgb = cv2.cvtColor(img_digs[digit], cv2.COLOR_BGR2RGB)
+                img_pred_tensor = tf.convert_to_tensor(img_pred_rgb, dtype=tf.float32)
+                img_pred_gray = tf.image.rgb_to_grayscale(img_pred_tensor)
+                img_pred_resize = tf.image.resize_with_pad(
+                    img_pred_gray,
+                    incept_dict['img_tgt_width'],
+                    incept_dict['img_tgt_height']
+                )
+                img_ds = tf.expand_dims(img_pred_resize, 0)
 
-                                log = 'Digit {0} prediction rejected due to low confidence.'. \
-                                    format(digit)
-                                logger.info(msg=log)
-                                print(log)
+                predictions = model.predict(
+                    x=img_ds,
+                    batch_size=incept_dict['batch_size']
+                )
+                for element in predictions:
+                    prediction = element.argmax(axis=0)
+                    confidence = element[prediction]
+                    print('Prediction is {0}, with probability {1}'.
+                          format(prediction, confidence))
 
-                            else:
-                                if prediction < 10:
-                                    pred_list[1] += str(prediction)
-
-                                elif (prediction >= 10) and (prediction < 20):
-                                    pred_list[1] += 'T'
-                                    pred_list[2] = 'I'
-
-                                    log = 'Digit {0} falls on transition boundary.'.\
-                                        format(digit)
-                                    logger.info(msg=log)
-                                    print(log)
-
-                                elif (prediction >= 20) and (prediction < 30):
-                                    pred_list[1] += 'N'
-                                    pred_list[2] = 'I'
-
-                                    log = 'Digit {0} is occluded by the needle.'.\
-                                        format(digit)
-                                    logger.info(msg=log)
-                                    print(log)
-
-                            pred_list.append(prediction)
-                            pred_list.append(confidence)
-
-                    else:
-                        pred_err = True
-                        log = 'Could not locate file {0} from which to make predictions.'.\
-                            format(img_pred_url)
-                        logger.error(msg=log)
-                        print(log)
-
-                        pred_list[1] += 'Z'
+                    if confidence < 0.80:
+                        pred_list[1] += 'R'
                         pred_list[2] = 'I'
 
-                if pred_list[2] == 'V':
-                    log = 'Prediction value has valid digits.'
-                    logger.info(msg=log)
-                    print(log)
+                        log = 'Digit {0} prediction rejected due to low confidence.'. \
+                            format(digit)
+                        logger.info(msg=log)
+                        print(log)
 
-                else:
-                    log = 'Prediction value has one or more invalid digits.'
-                    logger.info(msg=log)
-                    print(log)
+                    else:
+                        if prediction < 10:
+                            pred_list[1] += str(prediction)
 
-                log = 'Successfully predicted digit values from image data.'
+                        elif (prediction >= 10) and (prediction < 20):
+                            pred_list[1] += 'T'
+                            pred_list[2] = 'I'
+
+                            log = 'Digit {0} falls on transition boundary.'.\
+                                format(digit)
+                            logger.info(msg=log)
+                            print(log)
+
+                        elif (prediction >= 20) and (prediction < 30):
+                            pred_list[1] += 'N'
+                            pred_list[2] = 'I'
+
+                            log = 'Digit {0} is occluded by the needle.'.\
+                                format(digit)
+                            logger.info(msg=log)
+                            print(log)
+
+                    pred_list.append(prediction)
+                    pred_list.append(confidence)
+
+            if pred_list[2] == 'V':
+                log = 'Prediction value has valid digits.'
                 logger.info(msg=log)
                 print(log)
-                print(pred_list)
 
-            except Exception as exc:
-                pred_err = True
-                log = 'Failed to predict digit values from image data.'
-                logger.error(msg=log)
-                logger.error(msg=exc)
+            else:
+                log = 'Prediction value has one or more invalid digits.'
+                logger.info(msg=log)
                 print(log)
-                print(exc)
+
+            log = 'Successfully predicted digit values from image data.'
+            logger.info(msg=log)
+            print(log)
+            print(pred_list)
+
+        except Exception as exc:
+            pred_err = True
+            log = 'Failed to predict digit values from image data.'
+            logger.error(msg=log)
+            logger.error(msg=exc)
+            print(log)
+            print(exc)
 
         if not pred_err:
             img_olay_text = '          Value: '
