@@ -1,3 +1,6 @@
+__author__ = 'Larry A. Hartman'
+__company__ = 'Janus Research'
+
 import tensorflow as tf
 
 # noinspection PyUnresolvedReferences
@@ -31,365 +34,457 @@ def conv_block(
     padding: str = 'same',
     strides: int = 1,
     channel_axis: int = -1
-):
-    x = Conv2D(
+) -> any:
+    """
+    Builds common convolution block and returns convoluted data
+
+    :param data_in
+    :param nb_filter: int
+    :param size: tuple
+    :param padding: str
+    :param strides: int
+    :param channel_axis: int
+
+    :return x
+    """
+    conv_data = Conv2D(
         filters=nb_filter,
         kernel_size=size,
         strides=strides,
         padding=padding
-    )(data_in)
-    x = BatchNormalization(
+    )(inputs=data_in)
+    conv_data = BatchNormalization(
         axis=channel_axis
-    )(x)
-    x = Activation(
+    )(inputs=conv_data)
+    conv_data = Activation(
         activation=tf.nn.relu
-    )(x)
+    )(inputs=conv_data)
 
-    return x
+    return conv_data
 
 
 def inception_stem(
     data_in,
     channel_axis: int = -1
-):
-    x = conv_block(
+) -> any:
+    """
+    Build Inception stem
+
+    :param data_in
+    :param channel_axis: int
+
+    :return conv_data
+    """
+    # Use original data to transit route 0 through neural network
+    conv_data_r0 = conv_block(
         data_in=data_in,
         nb_filter=32,
         size=(3, 3),
         strides=2,
         padding='valid'
     )
-    x = conv_block(
-        data_in=x,
+    conv_data_r0 = conv_block(
+        data_in=conv_data_r0,
         nb_filter=32,
         size=(3, 3),
         padding='valid'
     )
-    x = conv_block(
-        data_in=x,
+    conv_data_r0 = conv_block(
+        data_in=conv_data_r0,
         nb_filter=64,
         size=(3, 3)
     )
 
-    x1 = MaxPooling2D(
+    # Use route 0 data to transit route 1 through neural network
+    conv_data_r1 = MaxPooling2D(
         pool_size=3,
         strides=2,
         padding='valid'
-    )(x)
-    x2 = conv_block(
-        data_in=x,
+    )(inputs=conv_data_r0)
+
+    # Use route 0 data to transit route 2 through neural network
+    conv_data_r2 = conv_block(
+        data_in=conv_data_r0,
         nb_filter=96,
         size=(3, 3),
         strides=2,
         padding='valid'
     )
 
-    x = concatenate(
+    # Merge route 1 and route 2 back into route 0
+    conv_data_r0 = concatenate(
         inputs=[
-            x1,
-            x2
+            conv_data_r1,
+            conv_data_r2
         ],
         axis=channel_axis
     )
 
-    x1 = conv_block(
-        data_in=x,
+    # Use route 0 data to transit route 1 through neural network
+    conv_data_r1 = conv_block(
+        data_in=conv_data_r0,
         nb_filter=64,
         size=(1, 1)
     )
-    x1 = conv_block(
-        data_in=x1,
+    conv_data_r1 = conv_block(
+        data_in=conv_data_r1,
         nb_filter=96,
         size=(3, 3),
         padding='valid'
     )
 
-    x2 = conv_block(
-        data_in=x,
+    # Use route 0 data to transit route 2 through neural network
+    conv_data_r2 = conv_block(
+        data_in=conv_data_r0,
         nb_filter=64,
         size=(1, 1)
     )
-    x2 = conv_block(
-        data_in=x2,
+    conv_data_r2 = conv_block(
+        data_in=conv_data_r2,
         nb_filter=64,
         size=(1, 7)
     )
-    x2 = conv_block(
-        data_in=x2,
+    conv_data_r2 = conv_block(
+        data_in=conv_data_r2,
         nb_filter=64,
         size=(7, 1)
     )
-    x2 = conv_block(
-        data_in=x2,
+    conv_data_r2 = conv_block(
+        data_in=conv_data_r2,
         nb_filter=96,
         size=(3, 3),
         padding='valid'
     )
 
-    x = concatenate(
+    # Merge route 1 and 2 back into route 0
+    conv_data_r0 = concatenate(
         inputs=[
-            x1,
-            x2
+            conv_data_r1,
+            conv_data_r2
         ],
         axis=channel_axis
     )
 
-    x1 = conv_block(
-        data_in=x,
+    # Use route 0 data to transit route 1 through neural network
+    conv_data_r1 = conv_block(
+        data_in=conv_data_r0,
         nb_filter=192,
         size=(3, 3),
         strides=2,
         padding='valid'
     )
-    x2 = MaxPooling2D(
+
+    # Use route 0 data to transit route 2 through neural network
+    conv_data_r2 = MaxPooling2D(
         pool_size=3,
         strides=2,
         padding='valid'
-    )(x)
+    )(inputs=conv_data_r0)
 
-    x = concatenate(
+    # Merge route 1 and route 2 back into route 0
+    conv_data_r0 = concatenate(
         inputs=[
-            x1,
-            x2
+            conv_data_r1,
+            conv_data_r2
         ],
         axis=channel_axis
     )
 
-    return x
+    return conv_data_r0
 
 
 def inception_a(
     data_in,
     channel_axis: int = -1
-):
-    a1 = conv_block(
+) -> any:
+    """
+    Build Inception A block
+
+    :param data_in
+    :param channel_axis: int
+
+    :return conv_data
+    """
+    # Use original data to transit route 1 through neural network
+    conv_data_r1 = conv_block(
         data_in=data_in,
         nb_filter=96,
         size=(1, 1)
     )
 
-    a2 = conv_block(
+    # Use original data to transit route 2 through neural network
+    conv_data_r2 = conv_block(
         data_in=data_in,
         nb_filter=64,
         size=(1, 1)
     )
-    a2 = conv_block(
-        data_in=a2,
+    conv_data_r2 = conv_block(
+        data_in=conv_data_r2,
         nb_filter=96,
         size=(3, 3)
     )
 
-    a3 = conv_block(
+    # Use original data to transit route 3 through neural network
+    conv_data_r3 = conv_block(
         data_in=data_in,
         nb_filter=64,
         size=(1, 1)
     )
-    a3 = conv_block(
-        data_in=a3,
+    conv_data_r3 = conv_block(
+        data_in=conv_data_r3,
         nb_filter=96,
         size=(3, 3)
     )
-    a3 = conv_block(
-        data_in=a3,
+    conv_data_r3 = conv_block(
+        data_in=conv_data_r3,
         nb_filter=96,
         size=(3, 3)
     )
 
-    a4 = AveragePooling2D(
+    # Use original data to transit route 4 through neural network
+    conv_data_r4 = AveragePooling2D(
         pool_size=3,
         strides=1,
         padding='same'
-    )(data_in)
-    a4 = conv_block(
-        data_in=a4,
+    )(inputs=data_in)
+    conv_data_r4 = conv_block(
+        data_in=conv_data_r4,
         nb_filter=96,
         size=(1, 1)
     )
 
-    m = concatenate(
+    # Merge routes 1, 2, 3, and 4 into route 0
+    conv_data_r0 = concatenate(
         inputs=[
-            a1,
-            a2,
-            a3,
-            a4
+            conv_data_r1,
+            conv_data_r2,
+            conv_data_r3,
+            conv_data_r4
         ],
         axis=channel_axis
     )
 
-    return m
+    return conv_data_r0
 
 
 def inception_b(
     data_in,
     channel_axis: int = -1
-):
-    b1 = conv_block(
+) -> any:
+    """
+    Build Inception B block
+
+    :param data_in
+    :param channel_axis: int
+
+    :return x
+    """
+    # Use original data to transit route 1 through neural network
+    conv_data_r1 = conv_block(
         data_in=data_in,
         nb_filter=384,
         size=(1, 1)
     )
 
-    b2 = conv_block(
+    # Use original data to transit route 2 through neural network
+    conv_data_r2 = conv_block(
         data_in=data_in,
         nb_filter=192,
         size=(1, 1)
     )
-    b2 = conv_block(
-        data_in=b2,
+    conv_data_r2 = conv_block(
+        data_in=conv_data_r2,
         nb_filter=224,
         size=(1, 7)
     )
-    b2 = conv_block(
-        data_in=b2,
+    conv_data_r2 = conv_block(
+        data_in=conv_data_r2,
         nb_filter=256,
         size=(7, 1)
     )
 
-    b3 = conv_block(
+    # Use original data to transit route 3 through neural network
+    conv_data_r3 = conv_block(
         data_in=data_in,
         nb_filter=192,
         size=(1, 1)
     )
-    b3 = conv_block(
-        data_in=b3,
+    conv_data_r3 = conv_block(
+        data_in=conv_data_r3,
         nb_filter=192,
         size=(7, 1)
     )
-    b3 = conv_block(
-        data_in=b3,
+    conv_data_r3 = conv_block(
+        data_in=conv_data_r3,
         nb_filter=224,
         size=(1, 7)
     )
-    b3 = conv_block(
-        data_in=b3,
+    conv_data_r3 = conv_block(
+        data_in=conv_data_r3,
         nb_filter=224,
         size=(7, 1)
     )
-    b3 = conv_block(
-        data_in=b3,
+    conv_data_r3 = conv_block(
+        data_in=conv_data_r3,
         nb_filter=256,
         size=(1, 7)
     )
 
-    b4 = AveragePooling2D(
+    # Use original data to transit route 4 through neural network
+    conv_data_r4 = AveragePooling2D(
         pool_size=3,
         strides=1,
         padding='same'
-    )(data_in)
-    b4 = conv_block(
-        data_in=b4,
+    )(inputs=data_in)
+    conv_data_r4 = conv_block(
+        data_in=conv_data_r4,
         nb_filter=128,
         size=(1, 1)
     )
 
-    m = concatenate(
+    # Merge routes 1, 2, 3, and 4 into route 0
+    conv_data_r0 = concatenate(
         inputs=[
-            b1,
-            b2,
-            b3,
-            b4
+            conv_data_r1,
+            conv_data_r2,
+            conv_data_r3,
+            conv_data_r4
         ],
         axis=channel_axis
     )
 
-    return m
+    return conv_data_r0
 
 
 def inception_c(
     data_in,
     channel_axis: int = -1
-):
-    c1 = conv_block(
+) -> any:
+    """
+    Build Inception C block
+
+    :param data_in
+    :param channel_axis: int
+
+    :return x
+    """
+    # Use original data to transit route 1 through neural network
+    conv_data_r1 = conv_block(
         data_in=data_in,
         nb_filter=256,
         size=(1, 1)
     )
 
-    c2 = conv_block(
+    # Use original data to transit route 2 through neural network
+    conv_data_r2 = conv_block(
         data_in=data_in,
         nb_filter=384,
         size=(1, 1)
     )
-    c2_1 = conv_block(
-        data_in=c2,
+
+    # Use route 2 data to transit route 2.1 through neural network
+    conv_data_r2_1 = conv_block(
+        data_in=conv_data_r2,
         nb_filter=256,
         size=(1, 3)
     )
-    c2_2 = conv_block(
-        data_in=c2,
+
+    # Use route 2 data to transit route 2.2 through neural network
+    conv_data_r2_2 = conv_block(
+        data_in=conv_data_r2,
         nb_filter=256,
         size=(3, 1)
     )
-    c2 = concatenate(
+
+    # Merge routes 2.1 and 2.2 back into route 2
+    conv_data_r2 = concatenate(
         inputs=[
-            c2_1,
-            c2_2
+            conv_data_r2_1,
+            conv_data_r2_2
         ],
         axis=channel_axis
     )
 
-    c3 = conv_block(
+    # Use original data to transit route 3 through neural network
+    conv_data_r3 = conv_block(
         data_in=data_in,
         nb_filter=384,
         size=(1, 1)
     )
-    c3 = conv_block(
-        data_in=c3,
+    conv_data_r3 = conv_block(
+        data_in=conv_data_r3,
         nb_filter=448,
         size=(3, 1)
     )
-    c3 = conv_block(
-        data_in=c3,
+    conv_data_r3 = conv_block(
+        data_in=conv_data_r3,
         nb_filter=512,
         size=(1, 3)
     )
-    c3_1 = conv_block(
-        data_in=c3,
+
+    # Use route 3 data to transit route 3.1 through neural network
+    conv_data_r3_1 = conv_block(
+        data_in=conv_data_r3,
         nb_filter=256,
         size=(1, 3)
     )
-    c3_2 = conv_block(
-        data_in=c3,
+
+    # Use route 3 data to transit route 3.2 through neural network
+    conv_data_r3_2 = conv_block(
+        data_in=conv_data_r3,
         nb_filter=256,
         size=(3, 1)
     )
-    c3 = concatenate(
+
+    # Merge routes 3.1 and 3.2 back into route 3
+    conv_data_r3 = concatenate(
         inputs=[
-            c3_1,
-            c3_2
+            conv_data_r3_1,
+            conv_data_r3_2
         ],
         axis=channel_axis
     )
 
-    c4 = AveragePooling2D(
+    # Use original data to transit route 4 through neural network
+    conv_data_r4 = AveragePooling2D(
         pool_size=3,
         strides=1,
         padding='same'
-    )(data_in)
-    c4 = conv_block(
-        data_in=c4,
+    )(inputs=data_in)
+    conv_data_r4 = conv_block(
+        data_in=conv_data_r4,
         nb_filter=256,
         size=(1, 1)
     )
 
-    m = concatenate(
+    # Merge routes 1, 2, 3, and 4 into route 0
+    conv_data_r0 = concatenate(
         inputs=[
-            c1,
-            c2,
-            c3,
-            c4
+            conv_data_r1,
+            conv_data_r2,
+            conv_data_r3,
+            conv_data_r4
         ],
         axis=channel_axis
     )
 
-    return m
+    return conv_data_r0
 
 
 def reduction_a(
     data_in,
     channel_axis: int = -1
-):
-    r1 = conv_block(
+) -> any:
+    """
+    Build Reduction A block
+
+    :param data_in
+    :param channel_axis: int
+
+    :return x
+    """
+    # Use original data to transit route 1 through neural network
+    conv_data_r1 = conv_block(
         data_in=data_in,
         nb_filter=384,
         size=(3, 3),
@@ -397,96 +492,111 @@ def reduction_a(
         padding='valid'
     )
 
-    r2 = conv_block(
+    # Use original data to transit route 2 through neural network
+    conv_data_r2 = conv_block(
         data_in=data_in,
         nb_filter=192,
         size=(1, 1)
     )
-    r2 = conv_block(
-        data_in=r2,
+    conv_data_r2 = conv_block(
+        data_in=conv_data_r2,
         nb_filter=224,
         size=(3, 3)
     )
-    r2 = conv_block(
-        data_in=r2,
+    conv_data_r2 = conv_block(
+        data_in=conv_data_r2,
         nb_filter=256,
         size=(3, 3),
         strides=2,
         padding='valid'
     )
 
-    r3 = MaxPooling2D(
+    # Use original data to transit route 3 through neural network
+    conv_data_r3 = MaxPooling2D(
         pool_size=3,
         strides=2,
         padding='valid'
-    )(data_in)
+    )(inputs=data_in)
 
-    m = concatenate(
+    # Merge routes 1, 2, and 3 into route 0
+    conv_data_r0 = concatenate(
         inputs=[
-            r1,
-            r2,
-            r3
+            conv_data_r1,
+            conv_data_r2,
+            conv_data_r3
         ], axis=channel_axis
     )
 
-    return m
+    return conv_data_r0
 
 
 def reduction_b(
     data_in,
     channel_axis: int = -1
-):
-    r1 = conv_block(
+) -> any:
+    """
+    Build Reduction B block
+
+    :param data_in
+    :param channel_axis: int
+
+    :return x
+    """
+    # Use original data to transit route 1 through neural network
+    conv_data_r1 = conv_block(
         data_in=data_in,
         nb_filter=192,
         size=(1, 1)
     )
-    r1 = conv_block(
-        data_in=r1,
+    conv_data_r1 = conv_block(
+        data_in=conv_data_r1,
         nb_filter=192,
         size=(3, 3),
         strides=2,
         padding='valid'
     )
 
-    r2 = conv_block(
+    # Use original data to transit route 2 through neural network
+    conv_data_r2 = conv_block(
         data_in=data_in,
         nb_filter=256,
         size=(1, 1)
     )
-    r2 = conv_block(
-        data_in=r2,
+    conv_data_r2 = conv_block(
+        data_in=conv_data_r2,
         nb_filter=256,
         size=(1, 7)
     )
-    r2 = conv_block(
-        data_in=r2,
+    conv_data_r2 = conv_block(
+        data_in=conv_data_r2,
         nb_filter=320,
         size=(7, 1)
     )
-    r2 = conv_block(
-        data_in=r2,
+    conv_data_r2 = conv_block(
+        data_in=conv_data_r2,
         nb_filter=320,
         size=(3, 3),
         strides=2,
         padding='valid'
     )
 
-    r3 = MaxPooling2D(
+    # Use original data to transit route 3 through neural network
+    conv_data_r3 = MaxPooling2D(
         pool_size=3,
         strides=2,
         padding='valid'
-    )(data_in)
+    )(inputs=data_in)
 
-    m = concatenate(
+    # Merge routes 1, 2, and 3 into route 0
+    conv_data = concatenate(
         inputs=[
-            r1,
-            r2,
-            r3
+            conv_data_r1,
+            conv_data_r2,
+            conv_data_r3
         ],
         axis=channel_axis
     )
-    return m
+    return conv_data
 
 
 def create_inception_v4(
@@ -509,62 +619,62 @@ def create_inception_v4(
 
     channel_axis = -1
 
-    # Input Shape is 299 x 299 x 3 (tf) or 3 x 299 x 299 (th)
+    # Input Shape is (x, 299, 299, 1)
     # training = False
-    x = inception_stem(
+    conv_data = inception_stem(
         data_in=init,
         channel_axis=channel_axis
     )
 
     # 4 x Inception A
     for i in range(4):
-        x = inception_a(
-            data_in=x,
+        conv_data = inception_a(
+            data_in=conv_data,
             channel_axis=channel_axis
         )
 
     # Reduction A
-    x = reduction_a(
-        data_in=x,
+    conv_data = reduction_a(
+        data_in=conv_data,
         channel_axis=channel_axis
     )
 
     # 7 x Inception B
     for i in range(7):
-        x = inception_b(
-            data_in=x,
+        conv_data = inception_b(
+            data_in=conv_data,
             channel_axis=channel_axis
         )
 
     # Reduction B
-    x = reduction_b(
-        data_in=x,
+    conv_data = reduction_b(
+        data_in=conv_data,
         channel_axis=channel_axis
     )
 
     # 3 x Inception C
     for i in range(3):
-        x = inception_c(
-            data_in=x,
+        conv_data = inception_c(
+            data_in=conv_data,
             channel_axis=channel_axis
         )
 
     # Average Pooling
-    x = AveragePooling2D(
+    conv_data = AveragePooling2D(
         pool_size=8
-    )(x)
+    )(inputs=conv_data)
 
     # Dropout
-    x = Dropout(
+    conv_data = Dropout(
         rate=0.2
-    )(x)
-    x = Flatten()(x)
+    )(inputs=conv_data)
+    conv_data = Flatten()(inputs=conv_data)
 
     # Output
     out = Dense(
         units=incept_dict['nbr_classes'],
         activation=tf.nn.softmax
-    )(x)
+    )(inputs=conv_data)
 
     model = Model(
         inputs=init,

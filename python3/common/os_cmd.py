@@ -24,6 +24,7 @@ def os_cmd(
     logger.info(cmd_str)
     print(cmd_str)
 
+    # Feed command string into OS subprocess
     process = subprocess.Popen(
         cmd_str.split(),
         stdin=subprocess.PIPE,
@@ -31,10 +32,13 @@ def os_cmd(
         stderr=subprocess.PIPE
     )
     std_out, std_err = process.communicate()
+
+    # Decode command results
     std_out = std_out.decode('utf-8')
     std_err = std_err.decode('utf-8')
     rtn_code = process.returncode
 
+    # Parse command results for logging
     if std_out == '':
         log = 'No reported output from command.'
         logger.info(msg=log)

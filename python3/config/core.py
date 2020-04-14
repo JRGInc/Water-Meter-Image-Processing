@@ -19,6 +19,8 @@ class CoreCfg(object):
         """
         Sets object properties directly
         """
+
+        # Define base paths
         base_dir = os.path.dirname('/opt/Janus/')
         program_dir = 'Water-Meter-Image-Processing/'
         self.program_dir = os.path.join(

@@ -22,17 +22,19 @@ class TensorCfg(object):
 
         :param core_cfg: any
         """
-        core_path_dict = core_cfg.get(attrib='core_path_dict')
 
+        # Setup core paths
+        core_path_dict = core_cfg.get(attrib='core_path_dict')
         self.tensor_cfg_url = os.path.join(
             core_path_dict['cfg'],
             'tensor.ini'
         )
+
+        # Setup config parser to open and read *.ini files
         self.config = configparser.ConfigParser()
         self.config.read_file(f=open(self.tensor_cfg_url))
 
-        # Dimensions based on already cropped image of all 6 digits
-        # Digits are listed as least significant = digit 0
+        # Dimensions for individual digits
         self.dig_dict = {
             'full_width': self.config.getint(
                 'Digit',
@@ -60,7 +62,7 @@ class TensorCfg(object):
             )
         }
 
-        # Inception image classification settings
+        # Global Inception object detection settings
         self.incept_dict = {
             'mdl': os.path.join(
                 core_path_dict['mdls'],
@@ -101,6 +103,10 @@ class TensorCfg(object):
             'format': self.config.get(
                 'Inception',
                 'format'
+            ),
+            'confidence': self.config.getfloat(
+                'Inception',
+                'confidence'
             )
         }
 
@@ -187,6 +193,7 @@ class TensorCfg(object):
         :param section: str
         :param attrib: str
         :param value: str
+
         :return: set_err: bool
         """
         set_err = False
@@ -195,12 +202,13 @@ class TensorCfg(object):
         valid_value = True
         log = ''
 
-        if section == 'TensorFlow':
+        if section == 'Digit':
             opt_type = 'int'
+
             if attrib == 'full_width':
                 pass
 
-            elif attrib == 'tf_width':
+            elif attrib == 'dig_width':
                 pass
 
             elif attrib == 'shadow':
@@ -216,7 +224,37 @@ class TensorCfg(object):
             elif attrib == 'shift':
                 pass
 
-            elif attrib == 'batch_size':
+            else:
+                valid_option = False
+
+            if valid_option and (opt_type == 'int'):
+                try:
+                    if int(value) < 1:
+                        log = 'Attribute value {0} is less than 1: {1}.'.format(attrib, value)
+                        logger.error(msg=log)
+                        log1 = 'Retaining previous value.'.format(attrib)
+                        logger.warning(msg=log1)
+                        valid_value = False
+
+                except ValueError:
+                    log = 'Attribute value {0} is not an integer: {1}.'.format(attrib, value)
+                    logger.error(msg=log)
+                    log1 = 'Retaining previous value.'.format(attrib)
+                    logger.warning(msg=log1)
+                    valid_value = False
+
+            if valid_option and (opt_type == 'bool'):
+                if not (value == 'True') and not (value == 'False'):
+                    log = 'Attribute value {0} is not a boolean: {1}.'.format(attrib, value)
+                    logger.error(msg=log)
+                    log1 = 'Retaining previous value.'.format(attrib)
+                    logger.warning(msg=log1)
+                    valid_value = False
+
+        elif section == 'Inception':
+            opt_type = 'int'
+
+            if attrib == 'batch_size':
                 pass
 
             elif attrib == 'img_tgt_width':
@@ -228,9 +266,6 @@ class TensorCfg(object):
             elif attrib == 'nbr_classes':
                 pass
 
-            elif attrib == 'nbr_channels':
-                pass
-
             elif attrib == 'patience':
                 pass
 
@@ -239,6 +274,10 @@ class TensorCfg(object):
 
             elif attrib == 'format':
                 opt_type = 'str'
+                pass
+
+            elif attrib == 'confidence':
+                opt_type = 'float'
 
             else:
                 valid_option = False
@@ -252,8 +291,64 @@ class TensorCfg(object):
                         logger.warning(msg=log1)
                         valid_value = False
 
-                    elif int(value) > 100:
-                        log = 'Attribute value {0} is greater than 100: {1}.'.format(attrib, value)
+                except ValueError:
+                    log = 'Attribute value {0} is not an integer: {1}.'.format(attrib, value)
+                    logger.error(msg=log)
+                    log1 = 'Retaining previous value.'.format(attrib)
+                    logger.warning(msg=log1)
+                    valid_value = False
+
+            if valid_option and (opt_type == 'float'):
+                try:
+                    if (float(value) < 0.00) and (float(value) > 1.00):
+                        log = 'Attribute value {0} is not within accepted numerical limits.'. \
+                            format(attrib, value)
+                        logger.error(msg=log)
+                        log1 = 'Retaining previous value.'.format(attrib)
+                        logger.warning(msg=log1)
+                        valid_value = False
+                except ValueError:
+                    log = 'Attribute {0} value {1} is not a float.'. \
+                        format(attrib, value)
+                    logger.error(msg=log)
+                    log1 = 'Retaining previous value.'.format(attrib)
+                    logger.warning(msg=log1)
+                    valid_value = False
+
+        elif section == 'Yolo':
+            opt_type = 'int'
+
+            if attrib == 'anchor_per_scale':
+                pass
+
+            elif attrib == 'iou_loss_thresh':
+                opt_type = 'float'
+                pass
+
+            elif attrib == 'batch_size':
+                pass
+
+            elif attrib == 'input_size':
+                pass
+
+            elif attrib == 'data_aug':
+                opt_type = 'bool'
+                pass
+
+            elif attrib == 'score_thresh':
+                opt_type = 'float'
+                pass
+
+            elif attrib == 'iou_thresh':
+                opt_type = 'float'
+
+            else:
+                valid_option = False
+
+            if valid_option and (opt_type == 'int'):
+                try:
+                    if int(value) < 1:
+                        log = 'Attribute value {0} is less than 1: {1}.'.format(attrib, value)
                         logger.error(msg=log)
                         log1 = 'Retaining previous value.'.format(attrib)
                         logger.warning(msg=log1)
@@ -261,6 +356,23 @@ class TensorCfg(object):
 
                 except ValueError:
                     log = 'Attribute value {0} is not an integer: {1}.'.format(attrib, value)
+                    logger.error(msg=log)
+                    log1 = 'Retaining previous value.'.format(attrib)
+                    logger.warning(msg=log1)
+                    valid_value = False
+
+            if valid_option and (opt_type == 'float'):
+                try:
+                    if (float(value) < 0.00) and (float(value) > 1.00):
+                        log = 'Attribute value {0} is not within accepted numerical limits.'. \
+                            format(attrib, value)
+                        logger.error(msg=log)
+                        log1 = 'Retaining previous value.'.format(attrib)
+                        logger.warning(msg=log1)
+                        valid_value = False
+                except ValueError:
+                    log = 'Attribute {0} value {1} is not a float.'. \
+                        format(attrib, value)
                     logger.error(msg=log)
                     log1 = 'Retaining previous value.'.format(attrib)
                     logger.warning(msg=log1)

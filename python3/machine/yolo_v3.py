@@ -1,15 +1,5 @@
-#! /usr/bin/env python
-# coding=utf-8
-# ================================================================
-#   Copyright (C) 2019 * Ltd. All rights reserved.
-#
-#   Editor      : VIM
-#   File name   : yolo_v3.py
-#   Author      : YunYang1994
-#   Created date: 2019-07-12 13:47:10
-#   Description :
-#
-# ================================================================
+__author__ = 'Larry A. Hartman'
+__company__ = 'Janus Research'
 
 import tensorflow as tf
 
@@ -23,347 +13,442 @@ from tensorflow.keras.layers import Conv2D
 from tensorflow.keras.layers import ZeroPadding2D
 
 
-class YoloBN(BatchNormalization):
+class YoloBatchNorm(BatchNormalization):
     """
-    "Frozen state" and "inference mode" are two separate concepts.
-    `layer.trainable = False` is to freeze the layer, so the layer will use
-    stored moving `var` and `mean` in the "inference mode", and both `gama`
-    and `beta` will not be updated !
+    Subclass TensorFlow BatchNormalization for some simple modifications
     """
-
     def call(
             self,
             inputs,
-            training=False
-    ):
-        if not training:
+            training: bool = False
+    ) -> any:
+        """
+        Call for customized BatchNormalization
+
+        :param inputs
+        :param training: bool
+
+        :return x
+        """
+        # Convert training parameter to TensorFlow variable
+        if training:
+            training = tf.constant(value=True)
+        else:
             training = tf.constant(value=False)
+
+        # Set training parameter in TensorFlow BatchNormalization
+        # only if the user requires training, and the layer.trainable
+        # flag is set.
+        """
+        "Frozen state" and "inference mode" are two separate concepts.
+        `layer.trainable = False` is to freeze the layer, so the layer will use
+        stored moving `var` and `mean` in the "inference mode", and both `gama`
+        and `beta` will not be updated !
+        """
         training = tf.math.logical_and(
             x=training,
             y=self.trainable
         )
-        return super().call(
+
+        # Calls and returns TensorFlow BatchNormalized data
+        data_out = super().call(
             inputs=inputs,
             training=training
         )
+        return data_out
 
 
-def convolutional(
-        input_layer,
-        filters_shape,
-        downsample=False,
-        activate=True,
-        bn=True
-):
+def conv_block(
+        data_in,
+        nb_filter: int,
+        size: tuple,
+        downsample: bool = False,
+        activate: bool = True,
+        batch_norm: bool = True
+) -> any:
+    """
+    Builds common convolution block and returns convoluted data
+
+    :param data_in
+    :param nb_filter: int
+    :param size: tuple
+    :param downsample: bool
+    :param activate: bool
+    :param batch_norm: bool
+
+    :return conv_data
+    """
     if downsample:
-        input_layer = ZeroPadding2D(padding=(
+        data_in = ZeroPadding2D(padding=(
             (1, 0),
             (1, 0)
-        ))(inputs=input_layer)
+        ))(inputs=data_in)
         padding = 'valid'
         strides = 2
     else:
         strides = 1
         padding = 'same'
 
-    conv = Conv2D(
-        filters=filters_shape[-1],
-        kernel_size=filters_shape[0],
+    conv_data = Conv2D(
+        filters=nb_filter,
+        kernel_size=size,
         strides=strides,
         padding=padding,
-        use_bias=not bn,
+        use_bias=not batch_norm,
         kernel_regularizer=tf.keras.regularizers.l2(l=0.0005),
         kernel_initializer=tf.random_normal_initializer(stddev=0.01),
         bias_initializer=tf.constant_initializer(value=0.)
-    )(inputs=input_layer)
+    )(inputs=data_in)
 
-    if bn:
-        conv = YoloBN()(inputs=conv)
+    if batch_norm:
+        conv_data = YoloBatchNorm()(inputs=conv_data)
     if activate:
-        conv = tf.nn.leaky_relu(
-            features=conv,
+        conv_data = tf.nn.leaky_relu(
+            features=conv_data,
             alpha=0.1
         )
 
-    return conv
+    return conv_data
 
 
-def residual_block(
-        input_layer,
-        input_channel,
-        filter_num1,
-        filter_num2
-):
-    short_cut = input_layer
-    conv = convolutional(
-        input_layer=input_layer,
-        filters_shape=(1, 1, input_channel, filter_num1)
+def res_block(
+        data_in,
+        filter1: int,
+        filter2: int
+) -> any:
+    """
+    Builds common residual block and returns convoluted data
+
+    :param data_in
+    :param filter1: int
+    :param filter2: int
+
+    :return data_out
+    """
+    conv_data = conv_block(
+        data_in=data_in,
+        nb_filter=filter1,
+        size=(1, 1)
     )
-    conv = convolutional(
-        input_layer=conv,
-        filters_shape=(3, 3, filter_num1, filter_num2)
-    )
-
-    residual_output = short_cut + conv
-    return residual_output
-
-
-def upsample(input_layer):
-    return tf.image.resize(
-        images=input_layer,
-        size=(
-            input_layer.shape[1] * 2,
-            input_layer.shape[2] * 2
-        ),
-        method='nearest'
+    conv_data = conv_block(
+        data_in=conv_data,
+        nb_filter=filter2,
+        size=(3, 3)
     )
 
+    data_out = data_in + conv_data
+    return data_out
 
-def darknet53(input_data):
-    input_data = convolutional(
-        input_layer=input_data,
-        filters_shape=(3, 3, 3, 32)
+
+def darknet53(
+        data_in
+) -> list:
+    """
+    Builds Darknet53 block and returns a list of convoluted data
+
+    :param data_in
+
+    :return [conv_data, conv_data_r1, conv_data_r2]
+    """
+    # Transit route 0 through neural network
+    conv_data_r0 = conv_block(
+        data_in=data_in,
+        nb_filter=32,
+        size=(3, 3)
     )
-    input_data = convolutional(
-        input_layer=input_data,
-        filters_shape=(3, 3, 32, 64),
+    conv_data_r0 = conv_block(
+        data_in=conv_data_r0,
+        nb_filter=64,
+        size=(3, 3),
         downsample=True
     )
 
     for i in range(1):
-        input_data = residual_block(
-            input_layer=input_data,
-            input_channel=64,
-            filter_num1=32,
-            filter_num2=64
+        conv_data_r0 = res_block(
+            data_in=conv_data_r0,
+            filter1=32,
+            filter2=64
         )
 
-    input_data = convolutional(
-        input_layer=input_data,
-        filters_shape=(3, 3, 64, 128),
+    conv_data_r0 = conv_block(
+        data_in=conv_data_r0,
+        nb_filter=128,
+        size=(3, 3),
         downsample=True
     )
 
     for i in range(2):
-        input_data = residual_block(
-            input_layer=input_data,
-            input_channel=128,
-            filter_num1=64,
-            filter_num2=128
+        conv_data_r0 = res_block(
+            data_in=conv_data_r0,
+            filter1=64,
+            filter2=128
         )
 
-    input_data = convolutional(
-        input_layer=input_data,
-        filters_shape=(3, 3, 128, 256),
+    conv_data_r0 = conv_block(
+        data_in=conv_data_r0,
+        nb_filter=256,
+        size=(3, 3),
         downsample=True
     )
 
     for i in range(8):
-        input_data = residual_block(
-            input_layer=input_data,
-            input_channel=256,
-            filter_num1=128,
-            filter_num2=256
+        conv_data_r0 = res_block(
+            data_in=conv_data_r0,
+            filter1=128,
+            filter2=256
         )
 
-    route_1 = input_data
-    input_data = convolutional(
-        input_layer=input_data,
-        filters_shape=(3, 3, 256, 512),
+    # Transit route 1 through neural network
+    conv_data_r1 = conv_data_r0
+    conv_data_r0 = conv_block(
+        data_in=conv_data_r0,
+        nb_filter=512,
+        size=(3, 3),
         downsample=True
     )
 
     for i in range(8):
-        input_data = residual_block(
-            input_layer=input_data,
-            input_channel=512,
-            filter_num1=256,
-            filter_num2=512
+        conv_data_r0 = res_block(
+            data_in=conv_data_r0,
+            filter1=256,
+            filter2=512
         )
 
-    route_2 = input_data
-    input_data = convolutional(
-        input_layer=input_data,
-        filters_shape=(3, 3, 512, 1024),
+    # Transit route 2 through neural network
+    conv_data_r2 = conv_data_r0
+    conv_data_r0 = conv_block(
+        data_in=conv_data_r0,
+        nb_filter=1024,
+        size=(3, 3),
         downsample=True
     )
 
     for i in range(4):
-        input_data = residual_block(
-            input_layer=input_data,
-            input_channel=1024,
-            filter_num1=512,
-            filter_num2=1024
+        conv_data_r0 = res_block(
+            data_in=conv_data_r0,
+            filter1=512,
+            filter2=1024
         )
 
-    return route_1, route_2, input_data
+    return [conv_data_r0, conv_data_r1, conv_data_r2]
 
 
 def create_yolo_v3(
-        input_layer,
-        classes
-):
-    nbr_classes = len(classes)
-    route_1, route_2, conv = darknet53(input_data=input_layer)
+        data_in,
+        classes: dict
+) -> list:
+    """
+    Builds empty Yolo v3 model and returns convolutions of small,
+    medium, and large boundary boxes
 
-    conv = convolutional(
-        input_layer=conv,
-        filters_shape=(1, 1, 1024, 512)
+    :param data_in
+    :param classes: dict
+
+    :return [conv_sbbox, conv_mbbox, conv_lbbox]
+    """
+    yolo_filter = 3 * (len(classes) + 5)
+    darknet_data = darknet53(data_in=data_in)
+
+    conv_data = conv_block(
+        data_in=darknet_data[0],
+        nb_filter=512,
+        size=(1, 1)
     )
-    conv = convolutional(
-        input_layer=conv,
-        filters_shape=(3, 3, 512, 1024)
+    conv_data = conv_block(
+        data_in=conv_data,
+        nb_filter=1024,
+        size=(3, 3)
     )
-    conv = convolutional(
-        input_layer=conv,
-        filters_shape=(1, 1, 1024, 512)
+    conv_data = conv_block(
+        data_in=conv_data,
+        nb_filter=512,
+        size=(1, 1)
     )
-    conv = convolutional(
-        input_layer=conv,
-        filters_shape=(3, 3, 512, 1024)
+    conv_data = conv_block(
+        data_in=conv_data,
+        nb_filter=1024,
+        size=(3, 3)
     )
-    conv = convolutional(
-        input_layer=conv,
-        filters_shape=(1, 1, 1024, 512)
+    conv_data = conv_block(
+        data_in=conv_data,
+        nb_filter=512,
+        size=(1, 1)
     )
 
-    conv_lobj_branch = convolutional(
-        input_layer=conv,
-        filters_shape=(3, 3, 512, 1024)
+    conv_lobj_branch = conv_block(
+        data_in=conv_data,
+        nb_filter=1024,
+        size=(3, 3)
     )
-    conv_lbbox = convolutional(
-        input_layer=conv_lobj_branch,
-        filters_shape=(1, 1, 1024, 3 * (nbr_classes + 5)),
+    conv_lbbox = conv_block(
+        data_in=conv_lobj_branch,
+        nb_filter=yolo_filter,
+        size=(1, 1),
         activate=False,
-        bn=False
+        batch_norm=False
     )
 
-    conv = convolutional(
-        input_layer=conv,
-        filters_shape=(1, 1, 512, 256)
+    conv_data = conv_block(
+        data_in=conv_data,
+        nb_filter=256,
+        size=(1, 1)
     )
-    conv = upsample(conv)
+    conv_data = tf.image.resize(
+        images=conv_data,
+        size=(
+            conv_data.shape[1] * 2,
+            conv_data.shape[2] * 2
+        ),
+        method='nearest'
+    )
 
-    conv = concatenate(
+    conv_data = concatenate(
         inputs=[
-            conv,
-            route_2
+            conv_data,
+            darknet_data[2]
         ],
         axis=-1
     )
 
-    conv = convolutional(
-        input_layer=conv,
-        filters_shape=(1, 1, 768, 256)
+    conv_data = conv_block(
+        data_in=conv_data,
+        nb_filter=256,
+        size=(1, 1)
     )
-    conv = convolutional(
-        input_layer=conv,
-        filters_shape=(3, 3, 256, 512)
+    conv_data = conv_block(
+        data_in=conv_data,
+        nb_filter=512,
+        size=(3, 3)
     )
-    conv = convolutional(
-        input_layer=conv,
-        filters_shape=(1, 1, 512, 256)
+    conv_data = conv_block(
+        data_in=conv_data,
+        nb_filter=256,
+        size=(1, 1)
     )
-    conv = convolutional(
-        input_layer=conv,
-        filters_shape=(3, 3, 256, 512)
+    conv_data = conv_block(
+        data_in=conv_data,
+        nb_filter=512,
+        size=(3, 3)
     )
-    conv = convolutional(
-        input_layer=conv,
-        filters_shape=(1, 1, 512, 256)
+    conv_data = conv_block(
+        data_in=conv_data,
+        nb_filter=256,
+        size=(1, 1)
     )
 
-    conv_mobj_branch = convolutional(
-        input_layer=conv,
-        filters_shape=(3, 3, 256, 512)
+    conv_mobj_branch = conv_block(
+        data_in=conv_data,
+        nb_filter=512,
+        size=(3, 3)
     )
-    conv_mbbox = convolutional(
-        input_layer=conv_mobj_branch,
-        filters_shape=(1, 1, 512, 3 * (nbr_classes + 5)),
+    conv_mbbox = conv_block(
+        data_in=conv_mobj_branch,
+        nb_filter=yolo_filter,
+        size=(1, 1),
         activate=False,
-        bn=False
+        batch_norm=False
     )
 
-    conv = convolutional(
-        input_layer=conv,
-        filters_shape=(1, 1, 256, 128)
+    conv_data = conv_block(
+        data_in=conv_data,
+        nb_filter=128,
+        size=(1, 1)
     )
-    conv = upsample(conv)
+    conv_data = tf.image.resize(
+        images=conv_data,
+        size=(
+            conv_data.shape[1] * 2,
+            conv_data.shape[2] * 2
+        ),
+        method='nearest'
+    )
 
-    conv = concatenate(
+    conv_data = concatenate(
         inputs=[
-            conv,
-            route_1
+            conv_data,
+            darknet_data[1]
         ],
         axis=-1
     )
 
-    conv = convolutional(
-        input_layer=conv,
-        filters_shape=(1, 1, 384, 128)
+    conv_data = conv_block(
+        data_in=conv_data,
+        nb_filter=128,
+        size=(1, 1)
     )
-    conv = convolutional(
-        input_layer=conv,
-        filters_shape=(3, 3, 128, 256)
+    conv_data = conv_block(
+        data_in=conv_data,
+        nb_filter=256,
+        size=(3, 3)
     )
-    conv = convolutional(
-        input_layer=conv,
-        filters_shape=(1, 1, 256, 128)
+    conv_data = conv_block(
+        data_in=conv_data,
+        nb_filter=128,
+        size=(1, 1)
     )
-    conv = convolutional(
-        input_layer=conv,
-        filters_shape=(3, 3, 128, 256)
+    conv_data = conv_block(
+        data_in=conv_data,
+        nb_filter=256,
+        size=(3, 3)
     )
-    conv = convolutional(
-        input_layer=conv,
-        filters_shape=(1, 1, 256, 128)
+    conv_data = conv_block(
+        data_in=conv_data,
+        nb_filter=128,
+        size=(1, 1)
     )
 
-    conv_sobj_branch = convolutional(
-        input_layer=conv,
-        filters_shape=(3, 3, 128, 256)
+    conv_sobj_branch = conv_block(
+        data_in=conv_data,
+        nb_filter=256,
+        size=(3, 3)
     )
-    conv_sbbox = convolutional(
-        input_layer=conv_sobj_branch,
-        filters_shape=(1, 1, 256, 3 * (nbr_classes + 5)),
+    conv_sbbox = conv_block(
+        data_in=conv_sobj_branch,
+        nb_filter=yolo_filter,
+        size=(1, 1),
         activate=False,
-        bn=False
+        batch_norm=False
     )
 
     return [conv_sbbox, conv_mbbox, conv_lbbox]
 
 
 def decode(
-        conv_output,
-        classes,
+        data_in,
+        classes: dict,
         anchors,
-        strides,
-        i=0
-):
+        strides
+) -> any:
     """
-    return tensor of shape [batch_size, output_size, output_size, anchor_per_scale, 5 + num_classes]
-            contains (x, y, w, h, score, probability)
+    Decodes empty YOLO convoluted boundary boxes to produce empty
+    human-readable data to feed into YOLO v3 model
+
+    :param data_in
+    :param classes: dict
+    :param anchors
+    :param strides
+
+    return tensor with (x, y, w, h), confidence, class)
     """
-    nbr_classes = len(classes)
-    conv_shape = tf.shape(input=conv_output)
+    conv_shape = tf.shape(input=data_in)
     batch_size = conv_shape[0]
     output_size = conv_shape[1]
 
-    conv_output = tf.reshape(
-        tensor=conv_output,
+    conv_data = tf.reshape(
+        tensor=data_in,
         shape=(
             batch_size,
             output_size,
             output_size,
             3,
-            5 + nbr_classes
+            5 + len(classes)
         )
     )
 
-    conv_raw_dxdy = conv_output[:, :, :, :, 0:2]
-    conv_raw_dwdh = conv_output[:, :, :, :, 2:4]
-    conv_raw_conf = conv_output[:, :, :, :, 4:5]
-    conv_raw_prob = conv_output[:, :, :, :, 5:]
+    conv_raw_dxdy = conv_data[:, :, :, :, 0:2]
+    conv_raw_dwdh = conv_data[:, :, :, :, 2:4]
+    conv_raw_conf = conv_data[:, :, :, :, 4:5]
+    conv_raw_class = conv_data[:, :, :, :, 5:]
 
     y = tf.tile(
         input=tf.range(
@@ -398,8 +483,8 @@ def decode(
         dtype=tf.float32
     )
 
-    pred_xy = (tf.math.sigmoid(x=conv_raw_dxdy) + xy_grid) * strides[i]
-    pred_wh = (tf.math.exp(x=conv_raw_dwdh) * anchors[i]) * strides[i]
+    pred_xy = (tf.math.sigmoid(x=conv_raw_dxdy) + xy_grid) * strides
+    pred_wh = (tf.math.exp(x=conv_raw_dwdh) * anchors) * strides
     pred_xywh = concatenate(
         inputs=[
             pred_xy,
@@ -409,13 +494,14 @@ def decode(
     )
 
     pred_conf = tf.math.sigmoid(x=conv_raw_conf)
-    pred_prob = tf.math.sigmoid(x=conv_raw_prob)
+    pred_class = tf.math.sigmoid(x=conv_raw_class)
 
-    return concatenate(
+    data_out = concatenate(
         inputs=[
             pred_xywh,
             pred_conf,
-            pred_prob
+            pred_class
         ],
         axis=-1
     )
+    return data_out
