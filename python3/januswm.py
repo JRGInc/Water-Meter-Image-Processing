@@ -55,31 +55,31 @@ if __name__ == '__main__':
             )
             img_bbox_url = os.path.join(
                 img_path_dict['bbox'],
-                'bbox_' + img_orig_name[6::]
+                'bbox_' + img_orig_name[5::]
             )
             img_grotd_url = os.path.join(
                 img_path_dict['grotd'],
-                'grotd_' + img_orig_name[6::]
+                'grotd_' + img_orig_name[5::]
             )
             img_frotd_url = os.path.join(
                 img_path_dict['frotd'],
-                'frotd_' + img_orig_name[6::]
+                'frotd_' + img_orig_name[5::]
             )
             img_rect_url = os.path.join(
                 img_path_dict['rect'],
-                'rect_' + img_orig_name[6::]
+                'rect_' + img_orig_name[5::]
             )
             img_digw_url = os.path.join(
                 img_path_dict['digw'],
-                'digw_' + img_orig_name[6::]
+                'digw_' + img_orig_name[5::]
             )
             img_inv_url = os.path.join(
                 img_path_dict['inv'],
-                'inv_' + img_orig_name[6::]
+                'inv_' + img_orig_name[5::]
             )
             img_olay_url = os.path.join(
                 img_path_dict['olay'],
-                'olay_' + img_orig_name[6::]
+                'olay_' + img_orig_name[5::]
             )
 
             # Check to determine that file is legitimate
