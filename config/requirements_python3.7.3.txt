@@ -11,7 +11,7 @@ mock==3.0.5
 numpy==1.16.4
 opencv-python==4.1.1.26
 Pillow==6.2.0
-protobuf==3.7.1
+protobuf==3.15.0
 python-crontab==2.3.6
 python-dateutil==2.8.0
 scikit-learn==0.21.3
